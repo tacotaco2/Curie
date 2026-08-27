@@ -1,9 +1,9 @@
 name: Multi-Threaded Task Runner
 
 on:
+  repository_dispatch:
+    types: [run-task]
   workflow_dispatch:
-  schedule:
-    - cron: '0 * * * *'
 
 concurrency:
   group: cluster-pool-${{ github.workflow }}-${{ github.ref }}
